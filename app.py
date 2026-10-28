@@ -1,5 +1,6 @@
 import subprocess
 import os
+import re
 from flask import Flask, render_template_string, request, send_file
 from antlr4 import *
 from BazilioLexer import BazilioLexer
@@ -58,8 +59,8 @@ HTML_TEMPLATE = """
     <div class="container">
         <h2>🎵 Editor de Notas Musicales Directas</h2>
         <form method="POST">
-            <label>Escribe las notas tal cual (Ej: c4 d4 e4 c4 b3):</label>
-            <textarea name="codigo_musical" placeholder="c4 d4 e4...">{{ codigo | default('') }}</textarea>
+            <label>Escribe las notas tal cual (Ej: C4 D4 E4 C4 B3):</label>
+            <textarea name="codigo_musical" placeholder="C4 D4 E4...">{{ codigo | default('') }}</textarea>
             <button type="submit">Generar y Reproducir</button>
         </form>
         
@@ -69,7 +70,7 @@ HTML_TEMPLATE = """
 
         {% if generado %}
             <div class="success">¡Partitura y audio generados con éxito!</div>
-            <audio controls>
+            <audio controls autoplay>
                 <source src="/audio" type="audio/wav">
                 Tu navegador no soporta el reproductor de audio.
             </audio>
@@ -80,6 +81,33 @@ HTML_TEMPLATE = """
 </html>
 """
 
+def traducir_a_lilypond(texto_usuario):
+    """Convierte notas tipo C4, D4, B3 a formato válido de LilyPond"""
+    tokens = texto_usuario.strip().split()
+    notas_lily = []
+    for token in tokens:
+        match = re.match(r'([A-Ga-g])(\d+)', token)
+        if match:
+            letra = match.group(1).lower()
+            octava = int(match.group(2))
+            
+            # Mapeo de octavas para LilyPond absolute
+            if octava == 4:
+                apostrofes = "'"
+            elif octava == 5:
+                apostrofes = "''"
+            elif octava == 3:
+                apostrofes = ""
+            elif octava < 3:
+                apostrofes = "," * (3 - octava)
+            else:
+                apostrofes = "'" * (octava - 3)
+                
+            notas_lily.append(f"{letra}{apostrofes}4")
+        else:
+            notas_lily.append(token)
+    return " ".join(notas_lily)
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     generado = False
@@ -88,20 +116,23 @@ def index():
     if request.method == "POST":
         codigo = request.form.get("codigo_musical")
         try:
-            # Procesamiento con ANTLR
+            # 1. Procesamiento con ANTLR
             input_stream = InputStream(codigo)
             lexer = BazilioLexer(input_stream)
             stream = CommonTokenStream(lexer)
             parser = BazilioParser(stream)
             tree = parser.programa()
             
-            # Estructura para LilyPond
+            # 2. Traducir notas al formato que entiende LilyPond
+            notas_traducidas = traducir_a_lilypond(codigo)
+            
+            # 3. Estructura para LilyPond con diseño y MIDI
             contenido_ly = f"""
             \\version "2.24.0"
             \\score {{
                 \\absolute {{
                     \\stemDown
-                    {codigo}
+                    {notas_traducidas}
                 }}
                 \\layout {{}}
                 \\midi {{}}
@@ -111,10 +142,8 @@ def index():
             with open("partitura.ly", "w") as f:
                 f.write(contenido_ly)
                 
-            # 1. Compilar con LilyPond
+            # 4. Compilar partitura y audio
             subprocess.run(["lilypond", "-dno-point-and-click", "partitura.ly"], check=True)
-            
-            # 2. Convertir MIDI a WAV
             subprocess.run(["timidity", "partitura.midi", "-Ow", "-o", "partitura.wav"], check=True)
             
             generado = True
