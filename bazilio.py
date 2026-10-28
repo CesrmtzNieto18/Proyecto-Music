@@ -88,7 +88,7 @@ def generar_salida(partitura, base, solo_ly=False, aviso=print):
     # cada paso necesita el archivo del anterior: si uno falla, se detiene la cadena
     pasos = [
         (["lilypond", "-o", base, ruta_ly], "el PDF y el MIDI", [".pdf", ".midi"]),
-        (["timidity", "-Ow", "-o", base + ".wav", "-A200", base + ".midi"]),
+        (["timidity", "-Ow", "-o", base + ".wav", "-A400", base + ".midi"]),
         (["ffmpeg", "-y", "-loglevel", "error", "-i", base + ".wav",
           "-codec:a", "libmp3lame", "-qscale:a", "2", base + ".mp3"],
          "el MP3", [".mp3"]),
