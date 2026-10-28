@@ -44,6 +44,7 @@ HTML_TEMPLATE = """
         }
         button:hover { background: #e0e0e0; }
         .success { color: #a3be8c; margin-top: 15px; font-weight: bold; font-size: 14px; }
+        .error { color: #bf616a; margin-top: 15px; font-weight: bold; font-size: 13px; text-align: left; background: #2b2b2b; padding: 10px; border-radius: 4px; word-break: break-all; }
         audio { margin-top: 15px; width: 100%; }
         .btn-pdf { 
             display: inline-block; margin-top: 12px; text-decoration: none; 
@@ -61,6 +62,11 @@ HTML_TEMPLATE = """
             <textarea name="codigo_musical" placeholder="c4 d4 e4...">{{ codigo | default('') }}</textarea>
             <button type="submit">Generar y Reproducir</button>
         </form>
+        
+        {% if error_msg %}
+            <div class="error"><b>Error detectado:</b> {{ error_msg }}</div>
+        {% endif %}
+
         {% if generado %}
             <div class="success">¡Partitura y audio generados con éxito!</div>
             <audio controls>
@@ -77,6 +83,7 @@ HTML_TEMPLATE = """
 @app.route("/", methods=["GET", "POST"])
 def index():
     generado = False
+    error_msg = None
     codigo = ""
     if request.method == "POST":
         codigo = request.form.get("codigo_musical")
@@ -88,7 +95,7 @@ def index():
             parser = BazilioParser(stream)
             tree = parser.prog()
             
-            # Estructura para LilyPond que genera tanto el PDF (\layout) como el Audio (\midi)
+            # Estructura para LilyPond
             contenido_ly = f"""
             \\version "2.24.0"
             \\score {{
@@ -104,17 +111,18 @@ def index():
             with open("partitura.ly", "w") as f:
                 f.write(contenido_ly)
                 
-            # 1. Compilar con LilyPond (genera partitura.pdf y partitura.midi)
+            # 1. Compilar con LilyPond
             subprocess.run(["lilypond", "-dno-point-and-click", "partitura.ly"], check=True)
             
-            # 2. Convertir el MIDI a WAV para reproducirlo en la web
+            # 2. Convertir MIDI a WAV
             subprocess.run(["timidity", "partitura.midi", "-Ow", "-o", "partitura.wav"], check=True)
             
             generado = True
         except Exception as e:
-            print(f"Error: {e}")
+            error_msg = str(e)
+            print(f"Error detallado: {e}")
             
-    return render_template_string(HTML_TEMPLATE, generado=generado, codigo=codigo)
+    return render_template_string(HTML_TEMPLATE, generado=generado, error_msg=error_msg, codigo=codigo)
 
 @app.route("/audio")
 def audio():
