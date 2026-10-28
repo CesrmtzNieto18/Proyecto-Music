@@ -1,9 +1,10 @@
 FROM python:3.10-slim
 
-# Instalamos LilyPond, Timidity (para el audio) y dependencias
+# Instalamos LilyPond, Timidity y el banco de sonidos predeterminado
 RUN apt-get update && apt-get install -y \
     lilypond \
     timidity \
+    fluid-soundfont-gm \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
