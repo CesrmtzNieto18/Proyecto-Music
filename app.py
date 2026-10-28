@@ -93,7 +93,7 @@ def index():
             lexer = BazilioLexer(input_stream)
             stream = CommonTokenStream(lexer)
             parser = BazilioParser(stream)
-            tree = parser.bazilio()
+            tree = parser.programa()
             
             # Estructura para LilyPond
             contenido_ly = f"""
