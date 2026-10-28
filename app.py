@@ -45,6 +45,12 @@ HTML_TEMPLATE = """
         button:hover { background: #e0e0e0; }
         .success { color: #a3be8c; margin-top: 15px; font-weight: bold; font-size: 14px; }
         audio { margin-top: 15px; width: 100%; }
+        .btn-pdf { 
+            display: inline-block; margin-top: 12px; text-decoration: none; 
+            background: #007bff; color: white; padding: 10px 16px; 
+            border-radius: 4px; font-size: 14px; font-weight: bold; width: 100%; box-sizing: border-box; 
+        }
+        .btn-pdf:hover { background: #0056b3; }
     </style>
 </head>
 <body>
@@ -56,11 +62,12 @@ HTML_TEMPLATE = """
             <button type="submit">Generar y Reproducir</button>
         </form>
         {% if generado %}
-            <div class="success">¡Notas procesadas y listas para escuchar!</div>
-            <audio controls autoplay>
+            <div class="success">¡Partitura y audio generados con éxito!</div>
+            <audio controls>
                 <source src="/audio" type="audio/wav">
                 Tu navegador no soporta el reproductor de audio.
             </audio>
+            <a href="/download-pdf" class="btn-pdf">Descargar Partitura en PDF</a>
         {% endif %}
     </div>
 </body>
@@ -81,7 +88,7 @@ def index():
             parser = BazilioParser(stream)
             tree = parser.prog()
             
-            # Estructura para LilyPond incluyendo el bloque MIDI
+            # Estructura para LilyPond que genera tanto el PDF (\layout) como el Audio (\midi)
             contenido_ly = f"""
             \\version "2.24.0"
             \\score {{
@@ -89,6 +96,7 @@ def index():
                     \\stemDown
                     {codigo}
                 }}
+                \\layout {{}}
                 \\midi {{}}
             }}
             """
@@ -96,10 +104,10 @@ def index():
             with open("partitura.ly", "w") as f:
                 f.write(contenido_ly)
                 
-            # 1. Compilar con LilyPond (genera partitura.midi)
+            # 1. Compilar con LilyPond (genera partitura.pdf y partitura.midi)
             subprocess.run(["lilypond", "-dno-point-and-click", "partitura.ly"], check=True)
             
-            # 2. Convertir el archivo MIDI a WAV usando Timidity para que se pueda escuchar en la web
+            # 2. Convertir el MIDI a WAV para reproducirlo en la web
             subprocess.run(["timidity", "partitura.midi", "-Ow", "-o", "partitura.wav"], check=True)
             
             generado = True
@@ -110,7 +118,15 @@ def index():
 
 @app.route("/audio")
 def audio():
-    return send_file("partitura.wav", mimetype="audio/wav")
+    if os.path.exists("partitura.wav"):
+        return send_file("partitura.wav", mimetype="audio/wav")
+    return "Audio no encontrado", 404
+
+@app.route("/download-pdf")
+def download_pdf():
+    if os.path.exists("partitura.pdf"):
+        return send_file("partitura.pdf", as_attachment=True, mimetype="application/pdf")
+    return "PDF no encontrado", 404
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
